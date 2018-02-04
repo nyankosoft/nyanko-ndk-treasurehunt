@@ -1,10 +1,80 @@
+//>>>>>>>>>>>>>> Copied and pasted from build.gradle in the root directory of gvr-android-sdk
+
+// The dependencies for NDK builds live inside the .aar files so they need to
+// be extracted before NDK targets can build.
+
+// Note that some types of mistakes you make with from/into/include things do not cause
+// errors with gradle, i.e. ./gradlew build passes without telling something is wrong.
+
+// Examples:
+// into "${projectz.rootDir}/libraries/" causes a build error saying projectz is not found,
+// but into "${project.rootDir}/librariez/" passes the build whether or not the directory path
+// "${project.rootDir}/librariez/" exists or not.
+
+// Also are these what give the java source the necessary packages?
+
+task extractAudioSo(type: Copy) {
+    from zipTree("${project.rootDir}/libraries/sdk-audio-1.120.0.aar")
+    into "${project.rootDir}/libraries/"
+    include "jni/**/libgvr_audio.so"
+
+    // Tried this but it didn't resolve undefined reference errors either
+    //include "../jni/**/libgvr_audio.so"
+}
+
+task extractGvrSo(type: Copy) {
+    from zipTree("${project.rootDir}/libraries/sdk-base-1.120.0.aar")
+    into "${project.rootDir}/libraries/"
+    include "jni/**/libgvr.so"
+}
+
+task extractNdk { }
+extractNdk.dependsOn extractAudioSo
+extractNdk.dependsOn extractGvrSo
+
+task deleteNdk(type: Delete) {
+
+    delete "${project.rootDir}/libraries/jni"
+}
+//clean.dependsOn(deleteNdk)
+
+//<<<<<<<<<<<<<< Copied and pasted from build.gradle in the root directory of gvr-android-sdk
+
+buildscript {
+    
+    repositories {
+        //google()
+        jcenter()
+        maven { url "https://maven.google.com" }
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle-experimental:0.9.3'
+        //classpath 'com.android.tools.build:gradle:3.0.1'
+        
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+allprojects {
+    repositories {
+        //google()
+        jcenter()
+        maven { url "https://maven.google.com" }
+    }
+}
+
+// Applying this plugin in the build.gradle in the parent directory
+// causes error but in this directory it works. Not sure why things work that way. 
+// Commenting this out of course causes a range of errors, such as 'Could not find method android()' 
 apply plugin: 'com.android.application'
 
 android {
     compileSdkVersion 26
     defaultConfig {
         applicationId "com.gvr.ndktreasurehunt"
-        minSdkVersion 15
+        minSdkVersion 19
         targetSdkVersion 26
         versionCode 1
         versionName "1.0"
@@ -12,6 +82,25 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++14 -frtti -fexceptions"
+                cppFlags += "-I${project.rootDir}/libraries/headers"
+
+                // Add the necessary GVR .so files for all architectures.
+                //cppFlags += "-L" + file("${project.rootDir}/libraries/jni/arm64-v8a").absolutePath
+                //cppFlags += "-L" + file("${project.rootDir}/libraries/jni/armeabi-v7a").absolutePath
+                //cppFlags += "-L" + file("${project.rootDir}/libraries/jni/x86").absolutePath
+                //ldFlags.add("-L" + file("${project.rootDir}/libraries/jni/armeabi-v7a").absolutePath)
+                //ldFlags.add("-L" + file("${project.rootDir}/libraries/jni/x86").absolutePath)
+
+                //ldLibs.addAll(["log", "android", "EGL", "GLESv2"])
+
+                // Specific the particular .so files this sample links against.
+                //ldLibs.add("gvr")
+                //ldLibs.add("gvr_audio")
+
+                // This does not work. It causes a warning:
+                // clang++: warning: -lgvr: 'linker' input unused
+                // Basically, the compiler is getting the -l option, which should be given to the linker
+                //cppFlags += "-lgvr"
             }
         }
     }
@@ -21,10 +110,65 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
+    // Copied from
+    // https://github.com/googlesamples/android-ndk/blob/master/hello-jni/app/build.gradle
+    flavorDimensions 'cpuArch'
+    productFlavors {
+        arm7 {
+            dimension 'cpuArch'
+            ndk {
+                abiFilter 'armeabi-v7a'
+            }
+        }
+        arm8 {
+            dimension 'cpuArch'
+            ndk {
+                // Why is this one plural while other aren't?
+                abiFilters 'arm64-v8a'
+            }
+        }
+        x86 {
+            dimension 'cpuArch'
+            ndk {
+                abiFilter 'x86'
+            }
+        }
+        //x86_64 {
+        //    dimension 'cpuArch'
+        //    ndk {
+        //        abiFilter 'x86_64'
+        //    }
+        //}
+        //universal {
+        //    dimension 'cpuArch'
+        //    // include all default ABIs. with NDK-r16,  it is:
+        //    //   armeabi-v7a, arm64-v8a, x86, x86_64
+        //}
+    }
+
+    //productFlavors {
+    //    create ("fat") {
+    //        // This sample builds all architectures by default. Note that if you
+    //        // only want to build for a specific architecture, you need to
+    //        // remove the appropriate lines below. You also need to remove the
+    //        // .so files from the apk using
+    //        // "packagingOptions {exclude('lib/armeabi-v7a/*')}" in the android
+    //        // section.
+    //        ndk.abiFilters.add("arm64-v8a")
+    //        ndk.abiFilters.add("armeabi-v7a")
+    //        ndk.abiFilters.add("x86")
+    //    }
+    //}
+
     externalNativeBuild {
         cmake {
             path "CMakeLists.txt"
         }
+    }
+
+    lintOptions {
+        abortOnError false
     }
 }
 
@@ -34,4 +178,12 @@ dependencies {
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
+
+    compile 'com.google.vr:sdk-audio:1.120.0'
+    compile 'com.google.vr:sdk-base:1.120.0'
+    //compile 'com.android.support:support-core-utils:26.1.0'
 }
+
+build.dependsOn('extractNdk')
+//tasks.build.dependsOn tasks.extractNdk
+
