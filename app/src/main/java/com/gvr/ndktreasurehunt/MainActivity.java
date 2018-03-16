@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
   static {
     System.loadLibrary("gvr");
     System.loadLibrary("gvr_audio");
-    System.loadLibrary("treasurehunt_jni");
+    System.loadLibrary("native-lib");//treasurehunt_jni");
   }
 
   // Opaque native pointer to the native TreasureHuntRenderer instance.
